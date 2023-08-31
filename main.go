@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"strconv"
 )
 
 type Tile int
@@ -24,42 +26,51 @@ const (
 const InitialTile = Empty | Left | Right | Up | Down
 
 func (t Tile) String() string {
+	s := ""
+	red := "\033[31m"
+	reset := "\033[0m"
+
+	if t&Fixed != 0 {
+		s += red
+	}
+
 	t &= ^Fixed
 	switch t {
 	case Empty:
-		return " "
+		s += " "
 	case Left:
-		return "╴"
+		s += "╴"
 	case Right:
-		return "╶"
+		s += "╶"
 	case Up:
-		return "╵"
+		s += "╵"
 	case Down:
-		return "╷"
+		s += "╷"
 	case Left | Right:
-		return "─"
+		s += "─"
 	case Up | Down:
-		return "│"
+		s += "│"
 	case Left | Up:
-		return "┘"
+		s += "┘"
 	case Left | Down:
-		return "┐"
+		s += "┐"
 	case Right | Up:
-		return "└"
+		s += "└"
 	case Right | Down:
-		return "┌"
+		s += "┌"
 	case Left | Right | Up:
-		return "┴"
+		s += "┴"
 	case Left | Right | Down:
-		return "┬"
+		s += "┬"
 	case Left | Up | Down:
-		return "┤"
+		s += "┤"
 	case Right | Up | Down:
-		return "├"
+		s += "├"
 	case Left | Right | Up | Down:
-		return "┼"
+		s += "┼"
 	}
-	return fmt.Sprintf("?%d?", t)
+
+	return s + reset
 }
 
 func (m Map) String() string {
@@ -132,27 +143,26 @@ func propagate(m Map) Map {
 }
 
 func fixTile(m Map, x, y int) Map {
-	// choose directions randomly
-	randomTile := Empty
+	// TODO possibbly buggy
+
 	// left
-	if rand.Intn(2) == 0 {
-		randomTile |= Left
+	if x > 0 && m[x-1][y]&Fixed != 0 && rand.Intn(2) == 0 {
+		m[x][y] &= ^Left
 	}
 	// right
-	if rand.Intn(2) == 0 {
-		randomTile |= Right
+	if x < len(m)-1 && m[x+1][y]&Fixed != 0 && rand.Intn(2) == 0 {
+		m[x][y] &= ^Right
 	}
 	// up
-	if rand.Intn(2) == 0 {
-		randomTile |= Up
+	if y > 0 && m[x][y-1]&Fixed != 0 && rand.Intn(2) == 0 {
+		m[x][y] &= ^Up
 	}
 	// down
-	if rand.Intn(2) == 0 {
-		randomTile |= Down
+	if y < len(m[x])-1 && m[x][y+1]&Fixed != 0 && rand.Intn(2) == 0 {
+		m[x][y] &= ^Down
 	}
 
 	// fix the tile
-	m[x][y] &= randomTile
 	m[x][y] |= Fixed
 
 	return m
@@ -176,34 +186,20 @@ func collapse(m Map) Map {
 		for j := range m[i] {
 			t := m[i][j]
 			// only if has fixed neighbors
-			hasFixedNeighbor := false
+			entropy := 4
 			if i > 0 && m[i-1][j]&Fixed != 0 {
-				hasFixedNeighbor = true
+				entropy--
 			}
 			if i < len(m)-1 && m[i+1][j]&Fixed != 0 {
-				hasFixedNeighbor = true
+				entropy--
 			}
 			if j > 0 && m[i][j-1]&Fixed != 0 {
-				hasFixedNeighbor = true
+				entropy--
 			}
 			if j < len(m[i])-1 && m[i][j+1]&Fixed != 0 {
-				hasFixedNeighbor = true
+				entropy--
 			}
-			if hasFixedNeighbor && t&Fixed == 0 {
-				entropy := 0
-				if t&Up != 0 {
-					entropy++
-				}
-				if t&Down != 0 {
-					entropy++
-				}
-				if t&Left != 0 {
-					entropy++
-				}
-				if t&Right != 0 {
-					entropy++
-				}
-
+			if t&Fixed == 0 {
 				if entropy < minEntropy {
 					minEntropy = entropy
 					minTiles = []Point{}
@@ -240,10 +236,23 @@ func (m Map) isFixed() bool {
 }
 
 func main() {
-	tmap := initMap(20, 10)
+	w := 20
+	h := 10
+	if len(os.Args) > 2 {
+		wp, err := strconv.Atoi(os.Args[1])
+		if err == nil {
+			w = wp
+		}
+		hp, err := strconv.Atoi(os.Args[2])
+		if err == nil {
+			h = hp
+		}
+	}
+	tmap := initMap(w, h)
 	for !tmap.isFixed() {
 		tmap = propagate(tmap)
+		fmt.Println(tmap)
 		tmap = collapse(tmap)
+		fmt.Println(tmap)
 	}
-	fmt.Println(tmap)
 }
